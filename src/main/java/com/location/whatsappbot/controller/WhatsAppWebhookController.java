@@ -7,7 +7,6 @@ import com.location.whatsappbot.service.WhatsAppSenderService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/whatsapp")
 public class WhatsAppWebhookController {
 
-    // ✅ Mémoire des sessions utilisateur
+    // ✅ Mémoire des conversations par numéro
     private static final Map<String, FormulaireAudio> sessions = new HashMap<>();
 
     @Autowired
@@ -30,37 +29,28 @@ public class WhatsAppWebhookController {
 
     @PostMapping("/webhook")
     public ResponseEntity<String> receiveWebhook(
-
             @RequestParam(value = "From", required = false) String from,
-
             @RequestParam(value = "Body", required = false) String body,
-
             @RequestParam(value = "MediaUrl0", required = false) String mediaUrl,
-
             @RequestParam(value = "NumMedia", required = false, defaultValue = "0") String numMedia) {
 
-        // =========================================================
-        // ✅ Sécurité
-        // =========================================================
+        // ✅ Vérification sécurité
         if (from == null || from.isEmpty()) {
-
-            System.out.println("⚠️ Aucun numéro reçu.");
-
+            System.out.println("⚠️ Requête ignorée : aucun numéro reçu.");
             return ResponseEntity.ok("Ignored");
         }
 
         System.out.println("====== WHATSAPP BOT ======");
-        System.out.println("From : " + from);
-        System.out.println("Body : " + body);
+        System.out.println("De : " + from);
+        System.out.println("Message : " + body);
+        System.out.println("NumMedia : " + numMedia);
         System.out.println("MediaUrl : " + mediaUrl);
 
         String fromNumber = from
                 .replace("whatsapp:+", "")
                 .replace("whatsapp:", "");
 
-        // =========================================================
-        // ✅ Session utilisateur
-        // =========================================================
+        // ✅ Récupère session existante ou crée nouvelle session
         FormulaireAudio data = sessions.getOrDefault(
                 fromNumber,
                 new FormulaireAudio(fromNumber));
@@ -68,24 +58,24 @@ public class WhatsAppWebhookController {
         FormulaireAudio nouvelles = null;
 
         // =========================================================
-        // 🎙️ AUDIO
+        // 🎙️ CAS AUDIO
         // =========================================================
         if (mediaUrl != null && !mediaUrl.isEmpty()) {
 
-            System.out.println("📥 Téléchargement audio...");
+            System.out.println("📥 Téléchargement audio : " + mediaUrl);
 
             String filePath = whatsAppSenderService.downloadAudioFile(
                     mediaUrl,
                     fromNumber);
 
-            // ✅ fallback local
+            // ✅ fallback si téléchargement échoue
             if (filePath == null) {
 
                 String userDir = System.getProperty("user.dir");
 
                 filePath = userDir + "/documents/vocal_test.ogg";
 
-                System.out.println("⚠️ Fallback utilisé : " + filePath);
+                System.out.println("⚠️ Fallback fichier test : " + filePath);
             }
 
             nouvelles = extraireDonneesLocation(
@@ -94,13 +84,13 @@ public class WhatsAppWebhookController {
         }
 
         // =========================================================
-        // 💬 TEXTE
+        // 💬 CAS TEXTE
         // =========================================================
         else if (body != null && !body.isEmpty()) {
 
             System.out.println("💬 Texte reçu : " + body);
 
-            if (!body.equalsIgnoreCase("test")
+            if (!body.equalsIgnoreCase("Test")
                     && body.length() > 2) {
 
                 nouvelles = extraireDonneesDepuisTexteDirect(
@@ -109,38 +99,38 @@ public class WhatsAppWebhookController {
 
             } else {
 
-                String helpMessage = "Robot 🤖 : Bonjour !\n\n"
-                        + "Envoyez un message contenant :\n"
-                        + "✅ prénom\n"
-                        + "✅ nom\n"
-                        + "✅ voiture\n"
-                        + "✅ date de départ\n"
-                        + "✅ durée";
+                String reply = "Robot 🤖 : Bonjour ! "
+                        + "Envoyez un vocal ou un message contenant :\n"
+                        + "- votre prénom\n"
+                        + "- votre nom\n"
+                        + "- le modèle de voiture\n"
+                        + "- la date de départ\n"
+                        + "- la durée.";
 
                 whatsAppSenderService.sendWhatsAppResponse(
                         fromNumber,
-                        helpMessage);
+                        reply);
 
                 return ResponseEntity.ok("OK");
             }
         }
 
         // =========================================================
-        // ❌ NON GÉRÉ
+        // ❌ CAS NON GÉRÉ
         // =========================================================
         else {
 
-            String msg = "Je gère uniquement les messages texte et audio.";
+            String reply = "Je gère seulement les messages texte et audio.";
 
             whatsAppSenderService.sendWhatsAppResponse(
                     fromNumber,
-                    msg);
+                    reply);
 
             return ResponseEntity.ok("OK");
         }
 
         // =========================================================
-        // ✅ Fusion des données
+        // ✅ FUSION DES DONNÉES
         // =========================================================
         if (nouvelles != null) {
 
@@ -183,23 +173,20 @@ public class WhatsAppWebhookController {
         // ✅ Sauvegarde session
         sessions.put(fromNumber, data);
 
-        // =========================================================
-        // ✅ Génération réponse
-        // =========================================================
+        // ✅ Génère réponse
         String reply = genererReponseDepuisData(
                 data,
                 fromNumber);
 
-        // =========================================================
-        // ✅ Si réservation complète → suppression session
-        // =========================================================
+        // ✅ Si réservation complète → supprimer session
         if (reply.startsWith("Reservation enregistree")) {
 
             sessions.remove(fromNumber);
 
-            System.out.println("🗑️ Session supprimée.");
+            System.out.println("🗑️ Session supprimée pour : " + fromNumber);
         }
 
+        // ✅ Envoi WhatsApp
         whatsAppSenderService.sendWhatsAppResponse(
                 fromNumber,
                 reply);
@@ -218,8 +205,8 @@ public class WhatsAppWebhookController {
 
         try {
 
-            String transcription = openAiWhisperService.transcribeAudio(
-                    cheminFichier);
+            String transcription = openAiWhisperService
+                    .transcribeAudio(cheminFichier);
 
             if (transcription == null
                     || transcription.isEmpty()) {
@@ -231,8 +218,8 @@ public class WhatsAppWebhookController {
 
             formulaire.setTexteComplet(transcription);
 
-            String jsonGptString = openAiWhisperService.analyserTexteAvecGPT(
-                    transcription);
+            String jsonGptString = openAiWhisperService
+                    .analyserTexteAvecGPT(transcription);
 
             if (jsonGptString != null
                     && !jsonGptString.isEmpty()) {
@@ -262,15 +249,21 @@ public class WhatsAppWebhookController {
                             json.get("dateDepart").asText());
 
                 System.out.println(
-                        "✅ Extraction OK : "
+                        "✅ Données extraites : "
                                 + formulaire.getPrenom()
                                 + " "
-                                + formulaire.getNom());
+                                + formulaire.getNom()
+                                + " | "
+                                + formulaire.getTypeVoiture()
+                                + " | "
+                                + formulaire.getDateDepart()
+                                + " | "
+                                + formulaire.getDuree());
             }
 
         } catch (Exception e) {
 
-            System.out.println("❌ Erreur audio : " + e.getMessage());
+            System.out.println("❌ Erreur IA : " + e.getMessage());
         }
 
         return formulaire;
@@ -289,8 +282,8 @@ public class WhatsAppWebhookController {
 
         try {
 
-            String jsonGptString = openAiWhisperService.analyserTexteAvecGPT(
-                    texte);
+            String jsonGptString = openAiWhisperService
+                    .analyserTexteAvecGPT(texte);
 
             if (jsonGptString != null
                     && !jsonGptString.isEmpty()) {
@@ -322,31 +315,10 @@ public class WhatsAppWebhookController {
 
         } catch (Exception e) {
 
-            System.out.println("❌ Erreur texte : " + e.getMessage());
+            System.out.println("❌ Erreur analyse texte : " + e.getMessage());
         }
 
         return formulaire;
-    }
-
-    // =========================================================
-    // ✅ VALIDATION DATE
-    // =========================================================
-    private boolean dateEstValide(String dateTexte) {
-
-        try {
-
-            LocalDate date = LocalDate.parse(dateTexte);
-
-            LocalDate aujourdHui = LocalDate.now();
-
-            return !date.isBefore(aujourdHui);
-
-        } catch (Exception e) {
-
-            System.out.println("❌ Date invalide : " + dateTexte);
-
-            return false;
-        }
     }
 
     // =========================================================
@@ -376,14 +348,6 @@ public class WhatsAppWebhookController {
                 || data.getDateDepart().isEmpty()
                 || "null".equalsIgnoreCase(data.getDateDepart());
 
-        // ✅ Validation date passée
-        boolean dateInvalide = false;
-
-        if (!dateManquante) {
-
-            dateInvalide = !dateEstValide(data.getDateDepart());
-        }
-
         // =========================================================
         // ✅ TOUT EST COMPLET
         // =========================================================
@@ -391,11 +355,9 @@ public class WhatsAppWebhookController {
                 && !nomManquant
                 && !voitureManquante
                 && !dureeManquante
-                && !dateManquante
-                && !dateInvalide) {
+                && !dateManquante) {
 
-            return "Reservation enregistree ! "
-                    + "Client : "
+            return "Reservation enregistree ! Client : "
                     + data.getPrenom()
                     + " "
                     + data.getNom()
@@ -415,8 +377,8 @@ public class WhatsAppWebhookController {
         // =========================================================
         StringBuilder buildReply = new StringBuilder();
 
-        buildReply.append("Robot 🤖 :\n");
-        buildReply.append("Informations manquantes :\n");
+        buildReply.append("Robot 🤖 : ");
+        buildReply.append("Il manque des informations :\n");
 
         if (prenomManquant) {
             buildReply.append("❌ Prénom manquant\n");
@@ -436,10 +398,6 @@ public class WhatsAppWebhookController {
 
         if (dureeManquante) {
             buildReply.append("❌ Durée manquante\n");
-        }
-
-        if (dateInvalide) {
-            buildReply.append("❌ La date de départ est déjà passée\n");
         }
 
         buildReply.append(
