@@ -4,8 +4,8 @@ import com.location.whatsappbot.dto.FormulaireAudio;
 import com.location.whatsappbot.service.OpenAiWhisperService;
 import com.location.whatsappbot.service.WhatsAppSenderService;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -59,124 +59,205 @@ public class WhatsAppWebhookController {
             FormulaireAudio data = extraireDonneesLocation(filePath, fromNumber);
             reply = genererReponseDepuisData(data, fromNumber);
 
-            // 💬 CAS 2 : Gestion des messages Texte alternatifs (Utile si l'audio bloque)
+            // 💬 CAS 2 : Gestion des messages Texte alternatifs
         } else if (body != null && !body.isEmpty()) {
+
             System.out.println("💬 Message texte intercepté à la place de l'audio : " + body);
 
-            // Pour offrir une flexibilité totale pendant ton test, on permet aussi
-            // l'analyse du texte direct
             if (!body.equalsIgnoreCase("Test") && body.length() > 3) {
+
                 FormulaireAudio data = extraireDonneesDepuisTexteDirect(body, fromNumber);
                 reply = genererReponseDepuisData(data, fromNumber);
+
             } else {
-                reply = "Robot 🤖 : Bonjour ! Envoyez un vocal (ou un message) contenant votre prénom, le modèle de voiture, la date de départ et la durée.";
+
+                reply = "Robot 🤖 : Bonjour ! Envoyez un vocal (ou un message) contenant votre prénom, votre nom, le modèle de voiture, la date de départ et la durée.";
+
             }
+
         } else {
+
             reply = "Je gère seulement les messages texte et audio pour l'instant.";
+
         }
 
         whatsAppSenderService.sendWhatsAppResponse(fromNumber, reply);
+
         return ResponseEntity.ok("OK");
     }
 
+    // 🎙️ EXTRACTION DES DONNÉES DEPUIS AUDIO
     private FormulaireAudio extraireDonneesLocation(String cheminFichier, String telephone) {
+
         FormulaireAudio formulaire = new FormulaireAudio(telephone);
+
         try {
+
             String transcription = openAiWhisperService.transcribeAudio(cheminFichier);
+
             if (transcription == null || transcription.isEmpty())
                 return formulaire;
 
             System.out.println("📝 Transcription : " + transcription);
+
             formulaire.setTexteComplet(transcription);
 
             String jsonGptString = openAiWhisperService.analyserTexteAvecGPT(transcription);
+
             if (jsonGptString != null && !jsonGptString.isEmpty()) {
+
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode json = mapper.readTree(jsonGptString);
 
                 if (json.hasNonNull("prenom"))
                     formulaire.setPrenom(json.get("prenom").asText());
+
+                // ✅ AJOUT NOM
+                if (json.hasNonNull("nom"))
+                    formulaire.setNom(json.get("nom").asText());
+
                 if (json.hasNonNull("typeVoiture"))
                     formulaire.setTypeVoiture(json.get("typeVoiture").asText());
+
                 if (json.hasNonNull("duree"))
                     formulaire.setDuree(json.get("duree").asText());
+
                 if (json.hasNonNull("dateDepart"))
                     formulaire.setDateDepart(json.get("dateDepart").asText());
 
                 System.out.println("✅ Données extraites — Prénom: " + formulaire.getPrenom()
+                        + " | Nom: " + formulaire.getNom()
                         + " | Voiture: " + formulaire.getTypeVoiture()
                         + " | Durée: " + formulaire.getDuree()
                         + " | Départ: " + formulaire.getDateDepart());
             }
+
         } catch (Exception e) {
+
             System.out.println("❌ Erreur IA : " + e.getMessage());
+
         }
+
         return formulaire;
     }
 
+    // 💬 EXTRACTION DES DONNÉES DEPUIS TEXTE DIRECT
     private FormulaireAudio extraireDonneesDepuisTexteDirect(String texte, String telephone) {
+
         FormulaireAudio formulaire = new FormulaireAudio(telephone);
+
         formulaire.setTexteComplet(texte);
+
         try {
+
             String jsonGptString = openAiWhisperService.analyserTexteAvecGPT(texte);
+
             if (jsonGptString != null && !jsonGptString.isEmpty()) {
+
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode json = mapper.readTree(jsonGptString);
 
                 if (json.hasNonNull("prenom"))
                     formulaire.setPrenom(json.get("prenom").asText());
+
+                // ✅ AJOUT NOM
+                if (json.hasNonNull("nom"))
+                    formulaire.setNom(json.get("nom").asText());
+
                 if (json.hasNonNull("typeVoiture"))
                     formulaire.setTypeVoiture(json.get("typeVoiture").asText());
+
                 if (json.hasNonNull("duree"))
                     formulaire.setDuree(json.get("duree").asText());
+
                 if (json.hasNonNull("dateDepart"))
                     formulaire.setDateDepart(json.get("dateDepart").asText());
+
             }
+
         } catch (Exception e) {
+
             System.out.println("❌ Erreur analyse texte direct : " + e.getMessage());
+
         }
+
         return formulaire;
     }
 
-    // 🤖 LOGIQUE DE VÉRIFICATION DES OUBLIS ET GÉNÉRATION DE LA RÉPONSE
+    // 🤖 GÉNÉRATION DE LA RÉPONSE
     private String genererReponseDepuisData(FormulaireAudio data, String fromNumber) {
-        boolean prenomManquant = (data.getPrenom() == null || data.getPrenom().isEmpty()
+
+        boolean prenomManquant = (data.getPrenom() == null
+                || data.getPrenom().isEmpty()
                 || "null".equalsIgnoreCase(data.getPrenom()));
-        boolean voitureManquante = (data.getTypeVoiture() == null || data.getTypeVoiture().isEmpty()
+
+        // ✅ AJOUT NOM MANQUANT
+        boolean nomManquant = (data.getNom() == null
+                || data.getNom().isEmpty()
+                || "null".equalsIgnoreCase(data.getNom()));
+
+        boolean voitureManquante = (data.getTypeVoiture() == null
+                || data.getTypeVoiture().isEmpty()
                 || "null".equalsIgnoreCase(data.getTypeVoiture()));
-        boolean dureeManquante = (data.getDuree() == null || data.getDuree().isEmpty()
+
+        boolean dureeManquante = (data.getDuree() == null
+                || data.getDuree().isEmpty()
                 || "null".equalsIgnoreCase(data.getDuree()));
-        boolean dateManquante = (data.getDateDepart() == null || data.getDateDepart().isEmpty()
+
+        boolean dateManquante = (data.getDateDepart() == null
+                || data.getDateDepart().isEmpty()
                 || "null".equalsIgnoreCase(data.getDateDepart()));
 
-        // Si tout est complet, on valide la réservation !
-        if (!prenomManquant && !voitureManquante && !dureeManquante && !dateManquante) {
-            return "Reservation enregistree ! Client: " + data.getPrenom()
-                    + " - Vehicule: " + data.getTypeVoiture()
-                    + " - Date de depart: " + data.getDateDepart()
-                    + " - Duree: " + data.getDuree()
-                    + " - Tel: " + fromNumber
+        // ✅ SI TOUT EST COMPLET
+        if (!prenomManquant
+                && !nomManquant
+                && !voitureManquante
+                && !dureeManquante
+                && !dateManquante) {
+
+            return "Reservation enregistree ! Client: "
+                    + data.getPrenom()
+                    + " "
+                    + data.getNom()
+                    + " - Vehicule: "
+                    + data.getTypeVoiture()
+                    + " - Date de depart: "
+                    + data.getDateDepart()
+                    + " - Duree: "
+                    + data.getDuree()
+                    + " - Tel: "
+                    + fromNumber
                     + ". Un agent va vous contacter !";
         }
 
-        // Sinon, on liste intelligemment à l'utilisateur ce qu'il a oublié
+        // ❌ INFORMATIONS MANQUANTES
         StringBuilder buildReply = new StringBuilder("Robot 🤖 : ");
+
         buildReply.append("Il manque des informations importantes pour votre réservation :\n");
 
         if (prenomManquant) {
             buildReply.append("❌ Votre prénom n'a pas été détecté.\n");
         }
+
+        // ✅ MESSAGE NOM MANQUANT
+        if (nomManquant) {
+            buildReply.append("❌ Votre nom de famille n'a pas été détecté.\n");
+        }
+
         if (voitureManquante) {
             buildReply.append("❌ Le modèle ou type de voiture est manquant.\n");
         }
+
         if (dateManquante) {
             buildReply.append("❌ La date de début/départ de la location n'est pas précisée.\n");
         }
+
         if (dureeManquante) {
             buildReply.append("❌ La durée totale de la location est manquante.\n");
         }
 
         buildReply.append("\nPouvez-vous me renvoyer un message bien clair contenant ces éléments ? 😊");
+
         return buildReply.toString();
     }
 }

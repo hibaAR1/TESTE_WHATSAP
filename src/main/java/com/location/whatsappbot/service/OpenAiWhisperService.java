@@ -61,13 +61,14 @@ public class OpenAiWhisperService {
         System.out.println("✅ Analyse de la phrase par LLaMA (Groq)...");
 
         String promptSystem = "Tu es un assistant d'extraction d'informations pour une agence de location de voiture. "
-                + "Analyse le texte de l'utilisateur et extrait UNIQUEMENT un objet JSON contenant exactement ces quatre clés :\n"
-                + "1) 'prenom' (corrige intelligemment les mauvaises prononciations ou orthographes, exemple: Yépa ou Hiba devient Hiba, Mohamd devient Mohamed)\n"
-                + "2) 'typeVoiture' (toute marque ou modèle de voiture cité, même approximatif. Exemples: Toyota, Toyota 2025 devient Toyota 2025, Clio devient Renault Clio, pliou devient Renault Clio, Tayo devient Toyota. Ne mets JAMAIS null si une marque ou un mot ressemblant à une voiture est mentionné)\n"
-                + "3) 'duree' (la durée demandée, exemple: 3 jours, une semaine, 7 jours. Ne mets JAMAIS null si une durée ou période est mentionnée)\n"
-                + "4) 'dateDepart' (la date où commence la location. Exemples: demain, lundi prochain, le 25 mai, 5-19-2026. Si vraiment aucune date n'est mentionnée, mets null)\n\n"
-                + "⚠️ REGLE ABSOLUE : Sois GENEREUX dans l'extraction, ne mets null QUE si l'information est vraiment absente. Ne devine rien d'inventé, mais utilise tout ce qui est dit.\n"
-                + "Ne réponds rien d'autre que le JSON pur. Pas de texte explicatif avant ou après, pas de blocs de code markdown comme ```json.";
+                + "Analyse le texte de l'utilisateur et extrait UNIQUEMENT un objet JSON contenant exactement ces cinq clés :\n"
+                + "1) 'prenom' (le prénom de la personne, corrige les fautes de prononciation)\n"
+                + "2) 'nom' (le nom de famille de la personne, corrige les fautes de prononciation. Si non mentionné, mets null)\n"
+                + "3) 'typeVoiture' (toute marque ou modèle de voiture cité, même approximatif. Toyota 2025, Clio devient Renault Clio, etc. Ne mets JAMAIS null si une voiture est mentionnée)\n"
+                + "4) 'duree' (la durée demandée, exemple: 3 jours, une semaine. Ne mets JAMAIS null si une durée est mentionnée)\n"
+                + "5) 'dateDepart' (la date où commence la location. Si vraiment absente, mets null)\n\n"
+                + "⚠️ REGLE ABSOLUE : Sois GENEREUX dans l'extraction, ne mets null QUE si l'information est vraiment absente.\n"
+                + "Ne réponds rien d'autre que le JSON pur. Pas de blocs markdown.";
 
         JSONObject messageSystem = new JSONObject().put("role", "system").put("content", promptSystem);
         JSONObject messageUser = new JSONObject().put("role", "user").put("content", transcription);
