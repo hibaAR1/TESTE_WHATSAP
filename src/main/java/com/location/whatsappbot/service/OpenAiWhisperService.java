@@ -83,7 +83,7 @@ public class OpenAiWhisperService {
                 jsonRequestBody.toString(), MediaType.parse("application/json; charset=utf-8"));
 
         Request request = new Request.Builder()
-                .url("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)")
+                .url("https://api.groq.com/openai/v1/chat/completions")
                 .addHeader("Authorization", "Bearer " + apiKey)
                 .post(body)
                 .build();
