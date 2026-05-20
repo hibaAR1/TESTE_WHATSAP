@@ -84,17 +84,20 @@ public class OpenAiWhisperService {
                 "   - Amine / Amyn → Amine\n" +
                 "   - Imane / Iman → Imane\n" +
                 "   - Zineb / Zneb → Zineb\n" +
-                "   ⚠️ Ne prends JAMAIS 'ana/je/I/moi/smiyti/ismi' comme prénom\n" +
+                "   ⚠️ Ne prends JAMAIS 'ana/je/I/moi/smiyti/ismi/bghit/mbghit/mbegit/nkri/bogi/mbogi' comme prénom\n" +
                 "   Si absent → null\n\n" +
 
-                "2) 'nom' : nom de famille.\n" +
-                "   - Arbel / Arbeel / Arbail / Arbal → Arbel\n" +
-                "   - Benali / Ben Ali → Benali\n" +
-                "   - Alaoui / Alawy → Alaoui\n" +
-                "   - Tazi / Tazy → Tazi\n" +
-                "   - Idrissi / Idrisi → Idrissi\n" +
-                "   Si absent → null\n\n" +
-
+                "2) 'nom' : nom de famille. IMPORTANT :\n" +
+                "   - Transcris le nom EXACTEMENT comme tu l'entends, sans supprimer de lettres\n" +
+                "   - Ne coupe JAMAIS un nom : 'Benmarka' reste 'Benmarka', pas 'Marka'\n" +
+                "   - Ne fusionne JAMAIS deux mots : 'Ben Marka' → 'Benmarka'\n" +
+                "   - Si tu entends des syllabes comme 'ben/bni/ould/el/al' → garde-les avec le nom\n" +
+                "   - Exemples de corrections phonétiques :\n" +
+                "     Mbalka / Mbalca / Bnmarka / Benmarca → Benmarka\n" +
+                "     Arbeel / Arbal / Arvel / Arbal → Arbel\n" +
+                "     Benali / Bnali / B'nali → Benali\n" +
+                "     Alaoui / Alawy / Alawi → Alaoui\n" +
+                "   - Si absent → null\n\n" +
                 "3) 'typeVoiture' : voiture demandée.\n" +
                 "   - Klio / Clio → Renault Clio\n" +
                 "   - Sandiru / Sandero → Dacia Sandero\n" +
@@ -119,6 +122,8 @@ public class OpenAiWhisperService {
                 "   ⚠️ Ne mets JAMAIS null si une durée est mentionnée\n\n" +
 
                 "5) 'dateDepart' : date de début.\n" +
+                "   - 5 mai / le 5 mai / mai 5 → 05/05/2026\n" +
+                "- le 25 / 25 mai → 25/05/2026\n" +
                 "   - ghda / tomorrow → demain\n" +
                 "   - lioum / had / today → aujourd'hui\n" +
                 "   - jemaa / vendredi / friday → vendredi\n" +
