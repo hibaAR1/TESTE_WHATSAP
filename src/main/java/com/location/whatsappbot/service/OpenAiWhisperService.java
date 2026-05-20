@@ -15,7 +15,6 @@ public class OpenAiWhisperService {
 
     private final OkHttpClient client = new OkHttpClient();
 
-    // 🎙️ ÉTAPE 1 : TRANSCRIPTION AUDIO AVEC WHISPER
     public String transcribeAudio(String filePath) {
         File file = new File(filePath);
         if (!file.exists()) {
@@ -26,9 +25,10 @@ public class OpenAiWhisperService {
         System.out.println("📊 Taille fichier : " + file.length() + " bytes");
 
         String whisperPrompt = "prénom, nom, louer, réserver, départ, durée, jours, semaines, mois, demain, " +
-                "Renault Clio, Dacia Sandero, Logan, Dokker, Toyota, Volkswagen Polo, Mercedes, BMW, " +
+                "Hiba, Arbel, Mohamed, Fatima, Karim, Amine, Youssef, Zineb, Imane, Benmarka, " +
+                "Renault Clio, Dacia Sandero, Logan, Dokker, Toyota, Mercedes, BMW, Hyundai, " +
                 "smiyti, ismi, bghit nkri, iyam, semana, chhar, ghda, lioum, jemaa, " +
-                "Klio, Sandiru, Lojan, Dokir, Korola, " +
+                "Klio, Sandiru, Lojan, Korola, " +
                 "my name is, rent a car, days, weeks, tomorrow";
 
         RequestBody requestBody = new MultipartBody.Builder()
@@ -63,42 +63,39 @@ public class OpenAiWhisperService {
         return null;
     }
 
-    // 🧠 ÉTAPE 2 : EXTRACTION STRUCTURÉE AVEC LLAMA 3.1
     public String analyserTexteAvecGPT(String transcription) {
         System.out.println("✅ Analyse de la phrase par LLaMA (Groq)...");
 
         String promptSystem = "INSTRUCTION CRITIQUE : Ta réponse doit commencer DIRECTEMENT par { et finir par }. " +
-                "JAMAIS de texte avant ou après. JAMAIS de 'Voici', 'JSON:', ou toute explication. " +
-                "UNIQUEMENT l'objet JSON pur.\n\n" +
+                "JAMAIS de texte avant ou après. UNIQUEMENT l'objet JSON pur.\n\n" +
+
+                "⚠️ REGLE LA PLUS IMPORTANTE : Extrait UNIQUEMENT les informations " +
+                "présentes dans CE message précis. " +
+                "Ne complète JAMAIS avec des informations mémorisées d'avant. " +
+                "Si une info n'est PAS dans ce message → null OBLIGATOIREMENT.\n\n" +
 
                 "Tu es un assistant d'extraction pour une agence de location de voiture au Maroc. " +
                 "Les clients parlent français, darija marocaine, anglais, ou un mélange. " +
                 "Extrait ces 5 clés JSON :\n\n" +
 
-                "1) 'prenom' : prénom du client.\n" +
+                "1) 'prenom' : prénom du client dans CE message.\n" +
                 "   - Mhmd / Mhammed → Mohamed\n" +
                 "   - Fatma → Fatima\n" +
-                "   - Youssef / Yousef → Youssef\n" +
                 "   - Hiba / Heba / Iba / Hba → Hiba\n" +
                 "   - Karim / Krim → Karim\n" +
                 "   - Amine / Amyn → Amine\n" +
-                "   - Imane / Iman → Imane\n" +
-                "   - Zineb / Zneb → Zineb\n" +
-                "   ⚠️ Ne prends JAMAIS 'ana/je/I/moi/smiyti/ismi/bghit/mbghit/mbegit/nkri/bogi/mbogi' comme prénom\n" +
-                "   Si absent → null\n\n" +
+                "   ⚠️ Ne prends JAMAIS comme prénom : ana/je/I/moi/smiyti/ismi/bghit/mbghit/mbegit/nkri\n" +
+                "   Si absent dans CE message → null\n\n" +
 
-                "2) 'nom' : nom de famille. IMPORTANT :\n" +
-                "   - Transcris le nom EXACTEMENT comme tu l'entends, sans supprimer de lettres\n" +
-                "   - Ne coupe JAMAIS un nom : 'Benmarka' reste 'Benmarka', pas 'Marka'\n" +
-                "   - Ne fusionne JAMAIS deux mots : 'Ben Marka' → 'Benmarka'\n" +
-                "   - Si tu entends des syllabes comme 'ben/bni/ould/el/al' → garde-les avec le nom\n" +
-                "   - Exemples de corrections phonétiques :\n" +
-                "     Mbalka / Mbalca / Bnmarka / Benmarca → Benmarka\n" +
-                "     Arbeel / Arbal / Arvel / Arbal → Arbel\n" +
-                "     Benali / Bnali / B'nali → Benali\n" +
-                "     Alaoui / Alawy / Alawi → Alaoui\n" +
-                "   - Si absent → null\n\n" +
-                "3) 'typeVoiture' : voiture demandée.\n" +
+                "2) 'nom' : nom de famille dans CE message.\n" +
+                "   - Transcris EXACTEMENT sans supprimer de lettres\n" +
+                "   - Mbalka / Bnmarka / Benmarca → Benmarka\n" +
+                "   - Arbeel / Arbal / Arvel → Arbel\n" +
+                "   - Benali / Bnali → Benali\n" +
+                "   - Alaoui / Alawy → Alaoui\n" +
+                "   Si absent dans CE message → null\n\n" +
+
+                "3) 'typeVoiture' : voiture dans CE message.\n" +
                 "   - Klio / Clio → Renault Clio\n" +
                 "   - Sandiru / Sandero → Dacia Sandero\n" +
                 "   - Lojan / Logan → Dacia Logan\n" +
@@ -109,28 +106,30 @@ public class OpenAiWhisperService {
                 "   - Mersidis / Mercedes → Mercedes\n" +
                 "   - I10 / Ayi10 → Hyundai i10\n" +
                 "   - Pikanto / Picanto → Kia Picanto\n" +
-                "   ⚠️ Ne mets JAMAIS null si une voiture est mentionnée\n\n" +
+                "   ⚠️ Ne mets JAMAIS null si une voiture est mentionnée dans CE message\n" +
+                "   Si absent dans CE message → null\n\n" +
 
-                "4) 'duree' : durée de location.\n" +
-                "   - joj iyam / jouj jours → 2 jours\n" +
+                "4) 'duree' : durée dans CE message.\n" +
+                "   - joj iyam → 2 jours\n" +
                 "   - tlata iyam → 3 jours\n" +
                 "   - reb3a iyam → 4 jours\n" +
                 "   - khamsa iyam → 5 jours\n" +
                 "   - semana / semaine / week → 1 semaine\n" +
-                "   - joj semana → 2 semaines\n" +
                 "   - chhar / mois / month → 1 mois\n" +
-                "   ⚠️ Ne mets JAMAIS null si une durée est mentionnée\n\n" +
+                "   ⚠️ Ne mets JAMAIS null si une durée est mentionnée dans CE message\n" +
+                "   Si absent dans CE message → null\n\n" +
 
-                "5) 'dateDepart' : date de début.\n" +
-                "   - 5 mai / le 5 mai / mai 5 → 05/05/2026\n" +
-                "- le 25 / 25 mai → 25/05/2026\n" +
+                "5) 'dateDepart' : date dans CE message.\n" +
                 "   - ghda / tomorrow → demain\n" +
                 "   - lioum / had / today → aujourd'hui\n" +
                 "   - jemaa / vendredi / friday → vendredi\n" +
-                "   - jemaa jaya → vendredi prochain\n" +
-                "   Si vraiment absente → null\n\n" +
+                "   - 5 mai / le 5 mai → 05/05/2026\n" +
+                "   - 20 mai / le 20 mai → 20/05/2026\n" +
+                "   - 25 mai / le 25 mai → 25/05/2026\n" +
+                "   Si absent dans CE message → null\n\n" +
 
-                "⚠️ RAPPEL FINAL : Commence par { et finis par }. Rien d'autre !";
+                "⚠️ RAPPEL FINAL : Commence par { et finis par }. " +
+                "Seulement ce qui est dit dans CE message !";
 
         JSONObject messageSystem = new JSONObject()
                 .put("role", "system")
