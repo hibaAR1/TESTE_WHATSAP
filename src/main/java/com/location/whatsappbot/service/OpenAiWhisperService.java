@@ -15,6 +15,7 @@ public class OpenAiWhisperService {
 
     private final OkHttpClient client = new OkHttpClient();
 
+    // 🎙️ ÉTAPE 1 : TRANSCRIPTION AUDIO MULTILINGUE
     public String transcribeAudio(String filePath) {
         File file = new File(filePath);
         if (!file.exists()) {
@@ -35,7 +36,8 @@ public class OpenAiWhisperService {
                         RequestBody.create(file, MediaType.parse("audio/ogg")))
                 .addFormDataPart("model", "whisper-large-v3-turbo")
                 .addFormDataPart("response_format", "json")
-                .addFormDataPart("language", "fr")
+                .addFormDataPart("language", "fr") // On garde "fr" car le modèle turbo gère le code-switching Darija/FR
+                                                   // s'il est guidé par le prompt.
                 .addFormDataPart("prompt", whisperPrompt)
                 .build();
 
@@ -61,57 +63,35 @@ public class OpenAiWhisperService {
         return null;
     }
 
+    // 🧠 ÉTAPE 2 : EXTRACTION FLUIDE ET FIABLE
     public String analyserTexteAvecGPT(String transcription) {
         System.out.println("✅ Analyse de la phrase par LLaMA (Groq)...");
 
-        String promptSystem = "Tu es un assistant d'extraction pour une agence de location de voiture au Maroc. " +
-                "Les clients parlent français, darija marocaine, anglais, ou un mélange. " +
-                "Extrait UNIQUEMENT ce qui est dit dans CE message — rien d'autre.\n\n" +
+        String promptSystem = "Tu es un expert en extraction de données JSON pour une agence de location de voitures au Maroc.\n"
+                +
+                "Le client s'exprime en français, anglais, darija marocaine ou un mélange des trois.\n\n" +
+                "Analyse le message reçu et génère UNIQUEMENT un objet JSON standard contenant ces 5 clés :\n" +
+                "1) 'prenom' : Extrait le prénom s'il est mentionné. Si absent -> null.\n" +
+                "2) 'nom' : Extrait le nom de famille s'il est mentionné. Si absent -> null.\n" +
+                "3) 'typeVoiture' : La marque ou modèle de voiture mentionné. Si le client donne juste une marque comme 'Hyundai', écris 'Hyundai'. Ne devine pas le modèle (ex: n'ajoute pas i10 de toi-même). Si absent -> null.\n"
+                +
+                "4) 'duree' : Traduis et normalise la durée en français (ex: '6 jours' -> '6 jours', 'tlt iyam' -> '3 jours', 'semana' -> '1 semaine'). Si absent -> null.\n"
+                +
+                "5) 'dateDepart' : Extrait la date exacte ou l'expression temporelle mentionnée par le client (ex: '20 mai 2026' -> '20 mai 2026', 'ghda' -> 'demain'). Ne remplace JAMAIS une date brute par 'aujourd'hui' sauf si le client dit explicitement 'aujourd'hui' ou 'lioum'. Si absent -> null.\n\n"
+                +
+                "⚠️ CONSIGNES STRICTES :\n" +
+                "- Ne prends pas d'exemples au pied de la lettre. Repose-toi uniquement sur les faits du texte.\n" +
+                "- Reste fidèle aux chiffres cités (ne transforme pas 6 jours en sbatat iyam).\n" +
+                "- Renvoie uniquement le JSON pur. Aucun texte explicatif.";
 
-                "Réponds UNIQUEMENT avec un JSON pur contenant ces 5 clés. " +
-                "Commence par { et finis par }. JAMAIS de texte avant ou après.\n\n" +
-
-                "1) 'prenom' : prénom du client.\n" +
-                "   Corrige intelligemment : Mhmd→Mohamed, Fatma→Fatima, Heba→Hiba, Krim→Karim\n" +
-                "   ⚠️ JAMAIS ces mots comme prénom : je/I/moi/ana/smiyti/ismi/bghit/nkri/mbghit\n" +
-                "   Si absent → null\n\n" +
-
-                "2) 'nom' : nom de famille.\n" +
-                "   Transcris EXACTEMENT ce qui est dit, sans inventer ni supprimer de lettres.\n" +
-                "   Si absent → null\n\n" +
-
-                "3) 'typeVoiture' : voiture mentionnée.\n" +
-                "   Corrige : Klio→Renault Clio, Sandiru→Dacia Sandero, Lojan→Dacia Logan,\n" +
-                "   Korola→Toyota Corolla, Bolo→Volkswagen Polo, Bimo→BMW, I10→Hyundai i10\n" +
-                "   ⚠️ Ne mets JAMAIS null si une voiture est mentionnée\n" +
-                "   Si absent → null\n\n" +
-
-                "4) 'duree' : durée de location.\n" +
-                "   Corrige : joj iyam→2 jours, tlata iyam→3 jours, reb3a→4 jours,\n" +
-                "   khamsa→5 jours, semana/semaine→1 semaine, chhar/mois→1 mois\n" +
-                "   ⚠️ Ne mets JAMAIS null si une durée est mentionnée\n" +
-                "   Si absent → null\n\n" +
-
-                "5) 'dateDepart' : date de début.\n" +
-                "   Corrige : ghda/tomorrow→demain, lioum/today→aujourd'hui,\n" +
-                "   jemaa/vendredi→vendredi\n" +
-                "   Si absent → null\n\n" +
-
-                "⚠️ REGLE ABSOLUE : Extrait UNIQUEMENT ce qui est dans CE message. " +
-                "Si une info est absente → null. Ne devine RIEN. Ne complète RIEN.";
-
-        JSONObject messageSystem = new JSONObject()
-                .put("role", "system")
-                .put("content", promptSystem);
-
-        JSONObject messageUser = new JSONObject()
-                .put("role", "user")
-                .put("content", transcription);
+        JSONObject messageSystem = new JSONObject().put("role", "system").put("content", promptSystem);
+        JSONObject messageUser = new JSONObject().put("role", "user").put("content", transcription);
 
         JSONObject jsonRequestBody = new JSONObject()
                 .put("model", "llama-3.1-8b-instant")
                 .put("messages", new JSONObject[] { messageSystem, messageUser })
-                .put("temperature", 0.0);
+                .put("temperature", 0.1); // Légère augmentation pour éviter les boucles de répétition d'exemples du
+                                          // prompt
 
         RequestBody body = RequestBody.create(
                 jsonRequestBody.toString(),
@@ -135,41 +115,36 @@ public class OpenAiWhisperService {
                         .getJSONObject("message")
                         .getString("content").trim();
 
-                // 🔒 Sécurité : extrait JSON même si LLaMA ajoute du texte
+                // 🔒 Sécurité : extrait JSON si texte parasite autour
                 if (!content.startsWith("{")) {
                     int start = content.indexOf("{");
                     int end = content.lastIndexOf("}");
                     if (start != -1 && end != -1) {
                         content = content.substring(start, end + 1);
-                        System.out.println("⚠️ JSON nettoyé : " + content);
                     }
                 }
 
-                // 🔒 Sécurité : supprime les clés inattendues comme "langue"
+                // 🔒 Sécurité : reconstruction du JSON propre
                 try {
-                    org.json.JSONObject jsonCheck = new org.json.JSONObject(content);
-                    org.json.JSONObject jsonClean = new org.json.JSONObject();
-                    jsonClean.put("prenom",
-                            jsonCheck.optString("prenom", "null").equals("null") ? org.json.JSONObject.NULL
-                                    : jsonCheck.opt("prenom"));
-                    jsonClean.put("nom", jsonCheck.optString("nom", "null").equals("null") ? org.json.JSONObject.NULL
-                            : jsonCheck.opt("nom"));
+                    JSONObject jsonCheck = new JSONObject(content);
+                    JSONObject jsonClean = new JSONObject();
+                    jsonClean.put("prenom", jsonCheck.optString("prenom", "null").equals("null") ? JSONObject.NULL
+                            : jsonCheck.opt("prenom"));
+                    jsonClean.put("nom",
+                            jsonCheck.optString("nom", "null").equals("null") ? JSONObject.NULL : jsonCheck.opt("nom"));
                     jsonClean.put("typeVoiture",
-                            jsonCheck.optString("typeVoiture", "null").equals("null") ? org.json.JSONObject.NULL
+                            jsonCheck.optString("typeVoiture", "null").equals("null") ? JSONObject.NULL
                                     : jsonCheck.opt("typeVoiture"));
-                    jsonClean.put("duree",
-                            jsonCheck.optString("duree", "null").equals("null") ? org.json.JSONObject.NULL
-                                    : jsonCheck.opt("duree"));
+                    jsonClean.put("duree", jsonCheck.optString("duree", "null").equals("null") ? JSONObject.NULL
+                            : jsonCheck.opt("duree"));
                     jsonClean.put("dateDepart",
-                            jsonCheck.optString("dateDepart", "null").equals("null") ? org.json.JSONObject.NULL
+                            jsonCheck.optString("dateDepart", "null").equals("null") ? JSONObject.NULL
                                     : jsonCheck.opt("dateDepart"));
                     content = jsonClean.toString();
-                    System.out.println("✅ JSON nettoyé final : " + content);
                 } catch (Exception e) {
                     System.out.println("⚠️ Nettoyage JSON échoué : " + e.getMessage());
                 }
 
-                System.out.println("✅ JSON extrait : " + content);
                 return content;
             } else if (response.body() != null) {
                 System.out.println("❌ Erreur LLaMA Groq : " + response.body().string());
