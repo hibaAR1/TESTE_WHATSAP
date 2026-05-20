@@ -35,7 +35,7 @@ public class OpenAiWhisperService {
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", file.getName(),
                         RequestBody.create(file, MediaType.parse("audio/ogg")))
-                .addFormDataPart("model", "whisper-large-v3")
+                .addFormDataPart("model", "whisper-large-v3-turbo")
                 .addFormDataPart("response_format", "json")
                 .addFormDataPart("language", "fr")
                 .addFormDataPart("prompt", whisperPrompt)
