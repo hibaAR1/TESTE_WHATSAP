@@ -26,12 +26,10 @@ public class OpenAiWhisperService {
         System.out.println("📊 Taille fichier : " + file.length() + " bytes");
 
         String whisperPrompt = "prénom, nom, louer, réserver, départ, durée, jours, semaines, mois, demain, " +
-                "Renault Clio, Dacia Sandero, Logan, Dokker, Toyota, Volkswagen Polo, Mercedes, BMW, Peugeot, Citroën, "
-                +
+                "Renault Clio, Dacia Sandero, Logan, Dokker, Toyota, Volkswagen Polo, Mercedes, BMW, " +
                 "smiyti, ismi, bghit nkri, iyam, semana, chhar, ghda, lioum, jemaa, " +
-                "Klio, Sandiru, Lojan, Dokir, Korola, Bolo, Bimo, " +
-                "my name is, rent a car, departure, days, weeks, tomorrow, " +
-                "1 jour, 2 jours, 3 jours, 7 jours, 1 semaine, 1 mois";
+                "Klio, Sandiru, Lojan, Dokir, Korola, " +
+                "my name is, rent a car, days, weeks, tomorrow";
 
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -39,6 +37,7 @@ public class OpenAiWhisperService {
                         RequestBody.create(file, MediaType.parse("audio/ogg")))
                 .addFormDataPart("model", "whisper-large-v3")
                 .addFormDataPart("response_format", "json")
+                .addFormDataPart("language", "fr")
                 .addFormDataPart("prompt", whisperPrompt)
                 .build();
 
@@ -80,16 +79,16 @@ public class OpenAiWhisperService {
                 "   - Mhmd / Mhammed → Mohamed\n" +
                 "   - Fatma → Fatima\n" +
                 "   - Youssef / Yousef → Youssef\n" +
-                "   - Hiba / Heba → Hiba\n" +
+                "   - Hiba / Heba / Iba / Hba → Hiba\n" +
                 "   - Karim / Krim → Karim\n" +
                 "   - Amine / Amyn → Amine\n" +
                 "   - Imane / Iman → Imane\n" +
                 "   - Zineb / Zneb → Zineb\n" +
-                "   ⚠️ Ne prends JAMAIS 'ana/je/I/moi' comme prénom\n" +
+                "   ⚠️ Ne prends JAMAIS 'ana/je/I/moi/smiyti/ismi' comme prénom\n" +
                 "   Si absent → null\n\n" +
 
                 "2) 'nom' : nom de famille.\n" +
-                "   - Arbel / Arbeel / Arbail → Arbel\n" +
+                "   - Arbel / Arbeel / Arbail / Arbal → Arbel\n" +
                 "   - Benali / Ben Ali → Benali\n" +
                 "   - Alaoui / Alawy → Alaoui\n" +
                 "   - Tazi / Tazy → Tazi\n" +
@@ -163,7 +162,7 @@ public class OpenAiWhisperService {
                         .getJSONObject("message")
                         .getString("content").trim();
 
-                // 🔒 Sécurité : extraire JSON même si LLaMA ajoute du texte
+                // 🔒 Sécurité : extrait JSON même si LLaMA ajoute du texte
                 if (!content.startsWith("{")) {
                     int start = content.indexOf("{");
                     int end = content.lastIndexOf("}");
