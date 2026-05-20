@@ -31,7 +31,7 @@ public class OpenAiWhisperService {
                         RequestBody.create(file, MediaType.parse("audio/ogg")))
                 .addFormDataPart("model", "whisper-large-v3")
                 .addFormDataPart("response_format", "json")
-                .addFormDataPart("language", "fr")
+
                 .build();
 
         Request request = new Request.Builder()
@@ -60,15 +60,39 @@ public class OpenAiWhisperService {
     public String analyserTexteAvecGPT(String transcription) {
         System.out.println("✅ Analyse de la phrase par LLaMA (Groq)...");
 
-        String promptSystem = "Tu es un assistant d'extraction d'informations pour une agence de location de voiture. "
-                + "Analyse le texte de l'utilisateur et extrait UNIQUEMENT un objet JSON contenant exactement ces cinq clés :\n"
-                + "1) 'prenom' (le prénom de la personne, corrige les fautes de prononciation)\n"
-                + "2) 'nom' (le nom de famille de la personne, corrige les fautes de prononciation. Si non mentionné, mets null)\n"
-                + "3) 'typeVoiture' (toute marque ou modèle de voiture cité, même approximatif. Toyota 2025, Clio devient Renault Clio, etc. Ne mets JAMAIS null si une voiture est mentionnée)\n"
-                + "4) 'duree' (la durée demandée, exemple: 3 jours, une semaine. Ne mets JAMAIS null si une durée est mentionnée)\n"
-                + "5) 'dateDepart' (la date où commence la location. Si vraiment absente, mets null)\n\n"
-                + "⚠️ REGLE ABSOLUE : Sois GENEREUX dans l'extraction, ne mets null QUE si l'information est vraiment absente.\n"
-                + "Ne réponds rien d'autre que le JSON pur. Pas de blocs markdown.";
+        String promptSystem = "Tu es un assistant d'extraction d'informations pour une agence de location de voiture au Maroc. "
+                + "Les clients parlent en français, darija marocaine, ou anglais — parfois un mélange des trois. "
+                + "Analyse le texte et extrait UNIQUEMENT un objet JSON avec ces cinq clés :\n\n"
+                + "1) 'prenom' : le prénom. Exemples darija/phonétique → correction :\n"
+                + "   - Mhmd/Mohamed/محمد → Mohamed\n"
+                + "   - Fatma/Fatima/فاطمة → Fatima\n"
+                + "   - Youssef/Yousef/يوسف → Youssef\n"
+                + "   - Hiba/Heba/هيبا → Hiba\n"
+                + "   - Karim/Krim → Karim\n\n"
+                + "2) 'nom' : le nom de famille. Même logique de correction. Si absent → null\n\n"
+                + "3) 'typeVoiture' : toute voiture citée même approximatif. Exemples :\n"
+                + "   - Klio/Clio/كليو → Renault Clio\n"
+                + "   - Sandero/سانديرو → Dacia Sandero\n"
+                + "   - Polo/بولو → Volkswagen Polo\n"
+                + "   - Corolla/كورولا → Toyota Corolla\n"
+                + "   - Dokker/دوكر → Dacia Dokker\n"
+                + "   - Logan/لوغان → Dacia Logan\n"
+                + "   - Ne mets JAMAIS null si une voiture est mentionnée\n\n"
+                + "4) 'duree' : durée de location. Exemples darija :\n"
+                + "   - joj iyam/jouj jours → 2 jours\n"
+                + "   - tlata iyam → 3 jours\n"
+                + "   - semana/semaine/week → 1 semaine\n"
+                + "   - chhar/mois/month → 1 mois\n"
+                + "   - Ne mets JAMAIS null si une durée est mentionnée\n\n"
+                + "5) 'dateDepart' : date de début. Exemples darija :\n"
+                + "   - ghda/غدا/tomorrow → demain\n"
+                + "   - had/aujourd'hui/today → aujourd'hui\n"
+                + "   - jemaa/vendredi/friday → vendredi\n"
+                + "   - Si vraiment absente → null\n\n"
+                + "⚠️ REGLES ABSOLUES :\n"
+                + "- Sois GENEREUX, ne mets null QUE si vraiment absent\n"
+                + "- Ne prends JAMAIS 'ana/je/I' comme prénom\n"
+                + "- JSON pur uniquement, pas de markdown";
 
         JSONObject messageSystem = new JSONObject().put("role", "system").put("content", promptSystem);
         JSONObject messageUser = new JSONObject().put("role", "user").put("content", transcription);
